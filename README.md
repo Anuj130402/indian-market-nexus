@@ -1,0 +1,156 @@
+# The Indian Market Nexus
+
+> A **directed causal graph** of the Indian equity market (NSE/BSE). NLP reads
+> filings and news to decide *which companies are wired together*; statistics
+> (cointegration, Kalman filters, transfer entropy) measure *how strongly and in
+> which direction*; a propagation model turns a shock in one stock into a
+> prediction of aftershocks in its neighbours; a backtest turns those
+> predictions into trades.
+
+**Status:** v0.1 — architecture skeleton. The `data → stats → graph → viz`
+slice runs end-to-end today (including on synthetic data with zero setup). The
+NLP, propagation, and backtest layers are scaffolded with clear interfaces and
+`TODO`s and are the next milestones.
+
+---
+
+## The one thing to understand first: two data streams
+
+This project fuses two *completely different* kinds of data. Keeping them
+straight is the key to the whole architecture.
+
+| | **Structural data** (the wiring) | **Dynamic data** (the electricity) |
+|---|---|---|
+| What | Annual reports, transcripts, news | Daily price movements (EOD OHLCV) |
+| Read by | The **NLP** layer | The **stats** layer |
+| Produces | *Which* companies connect, and how | *How strong / directed* each link is |
+| Analogy | The circuit board | The current flowing through it |
+
+You need **both**. The graph's *edges* come from text; the *shock and its
+aftershocks* are price movements flowing along those edges. Price data is where
+we start because it's free and immediately usable.
+
+---
+
+## Architecture
+
+```
+                          ┌─────────────────────────────────────┐
+   STRUCTURAL             │              THE EYES                │
+   text data  ─────────►  │  nlp/  (NER · relation extraction ·  │
+   (reports, news)        │        information content)          │
+                          └──────────────────┬──────────────────┘
+                                             │ typed directed relations
+                                             ▼
+   DYNAMIC              ┌──────────────┐   ┌──────────────────────┐
+   price data  ──────► │   stats/     │──►│    graph/ (builder)   │
+   (EOD OHLCV)         │ cointegration│   │  directed, weighted   │
+                       │ transfer-ent.│   │  DiGraph — every edge │
+                       │ kalman · corr│   │  carries its evidence │
+                       └──────────────┘   └───────────┬──────────┘
+                                                      │
+                     ┌────────────────────────────────┼────────────────────────┐
+                     ▼                                ▼                         ▼
+             ┌───────────────┐              ┌──────────────────┐        ┌──────────────┐
+             │  graph/metrics│              │  propagation/    │        │    viz/      │
+             │  centrality,  │              │  shock → predicted│        │  network map │
+             │  hidden links │              │  aftershocks     │        │  (→ explorer)│
+             │  (DISCOVERY)  │              │  (SIGNAL)        │        └──────────────┘
+             └───────────────┘              └────────┬─────────┘
+                                                     ▼
+                                            ┌──────────────────┐
+                                            │   backtest/      │
+                                            │  signal → trades │
+                                            │  Sharpe vs Nifty │
+                                            │  (END GOAL)      │
+                                            └──────────────────┘
+```
+
+Legibility is a design goal: **every edge stores the evidence that created it**
+(`same_group`, `cointegration`, `transfer_entropy`, `nlp:supplier_customer`, …),
+so you can always answer *"why is this edge here?"* — no black boxes.
+
+---
+
+## Quickstart
+
+```bash
+# 1. Environment
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .            # installs the `nexus` package
+
+# 2. Prove the whole pipeline works — NO network, NO data files needed
+python scripts/00_demo_synthetic.py
+#    -> prints a centrality table, writes artifacts/demo_graph.png
+#    -> verifies the stats recover planted structure (A→B lead-lag, C↔D cointegration)
+
+# 3. Run on REAL Nifty 50 data
+python scripts/01_fetch_market_data.py     # downloads EOD prices (needs internet)
+python scripts/02_build_graph.py           # builds graph, prints hidden linkages, saves image
+
+# 4. Run the tests
+pytest -q
+```
+
+---
+
+## Repository layout
+
+```
+config/            universe (Nifty 50 + sectors + groups), settings & thresholds
+src/nexus/
+  data/            market_data (yfinance) · synthetic · entity_resolution · text_sources[stub]
+  nlp/             ner · relation_extraction · info_content        [stubs — Section 3]
+  stats/           correlation · cointegration · transfer_entropy · kalman   [working]
+  graph/           builder (fuses NLP+stats) · metrics (centrality, discovery)  [working]
+  propagation/     shock_model (shock → aftershock signal)          [skeleton]
+  backtest/        engine (signal → trades, Sharpe vs Nifty)        [skeleton]
+  viz/             network_plot                                     [working]
+scripts/           00_demo_synthetic · 01_fetch_market_data · 02_build_graph
+tests/             structure-recovery tests (double as documentation)
+```
+
+---
+
+## Roadmap
+
+**Phase 1 — Graph you can trust** *(the working slice + hardening)*
+- [x] Directed graph from price stats (cointegration + transfer entropy + group seeds)
+- [x] Centrality + hidden-linkage discovery
+- [x] Synthetic-data pipeline + tests
+- [ ] Fetch the live/point-in-time Nifty 50 constituent list
+- [ ] Permutation-null significance test for transfer-entropy edges
+- [ ] Rolling-window edges (currently full-history)
+
+**Phase 2 — The Eyes (NLP)** *(build the structural edges)*
+- [ ] Annual-report ingestion + text extraction (priority 1 source)
+- [ ] Dictionary NER → relation extraction → typed directed edges
+- [ ] Fuse NLP edges with statistical edges (interface already in `builder.add_nlp_edges`)
+
+**Phase 3 — The Signal** *(earn the prediction before trading it)*
+- [ ] `propagation.evaluate_predictions`: directional hit-rate on historical shocks
+- [ ] This is the go/no-go gate — a real edge, measured, before any P&L
+
+**Phase 4 — The End Goal** *(trades)*
+- [ ] Backtest engine with costs, out-of-sample split, Sharpe vs Nifty
+- [ ] Scale universe to Nifty 500
+
+**Dream features** *(architecture already leaves room)*
+- [ ] Interactive network explorer · live shock simulator · daily aftershock alerts
+- [ ] LLM explanation layer ("B is exposed to A via a supplier link in A's FY23 report")
+
+---
+
+## Design decisions (the "why", for future-me)
+
+- **Directed graph, not correlation matrix** — causality has a direction; a shock
+  propagates *from* A *to* B. Transfer entropy is the directional backbone.
+- **Evidence on every edge** — an edge confirmed by *both* structure (NLP/group)
+  and statistics is trustworthy; the AND is what prevents a hairball.
+- **Backtest is built LAST, on purpose** — a backtest over an unvalidated signal
+  produces a beautiful lying equity curve. Validate the signal's hit-rate first.
+- **I/O isolated behind interfaces** — swap yfinance for a paid feed, or NetworkX
+  for Neo4j, without touching the science.
+
+*Not investment advice. A research and engineering project.*
