@@ -1,21 +1,18 @@
-# --- Core (needed for the working v1 slice: data -> stats -> graph -> viz) ---
 numpy>=1.26
 pandas>=2.1
 scipy>=1.11
-statsmodels>=0.14        # cointegration (Engle-Granger)
-networkx>=3.2            # the graph itself
-matplotlib>=3.8          # network visualisation
-pyarrow>=15.0            # Parquet cache
-yfinance>=0.2.40         # free EOD market data
+statsmodels>=0.14
+networkx>=3.2
+matplotlib>=3.8
+pyarrow>=15.0
+yfinance>=0.2.40
 
 # --- Testing ---
 pytest>=8.0
 
-# --- NLP layer (install when you start Section 3; heavier) ---
 # spacy>=3.7
-# transformers>=4.40     # FinBERT / relation models
-# pdfplumber>=0.11       # annual-report PDF text extraction
+# transformers>=4.40
+# pdfplumber>=0.11
 
-# --- GNN layer (v2, needs a GPU to be pleasant) ---
 # torch>=2.2
 # torch-geometric>=2.5

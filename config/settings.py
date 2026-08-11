@@ -39,7 +39,8 @@ class EdgeThresholds:
     CORRELATION_MIN = 0.5              # baseline filter for candidate pairs
     TRANSFER_ENTROPY_PERCENTILE = 90   # keep TE above 90th pct of shuffled null
     MIN_OBSERVATIONS = 250             # ~1 trading year before we trust a pair
-
+    TRANSFER_ENTROPY_ALPHA = 0.05   # keep a directed TE edge only if p <= this
+    TE_SURROGATES = 200
 # ---------------------------------------------------------------------------
 # Rolling-window settings (Section 4b: rolling preferred over static)
 # ---------------------------------------------------------------------------
