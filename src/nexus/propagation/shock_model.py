@@ -94,3 +94,4 @@ def evaluate_predictions(prices, returns, graph=None, graph_fn=None,
         "up_rate": up_rate,                    # context: market's own drift
         "detail": detail,
     }
+forward_return = _forward_return

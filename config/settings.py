@@ -47,6 +47,7 @@ class EdgeThresholds:
 class Windows:
     ROLLING_LOOKBACK = 252   # trading days (~1y) for rolling edge stats
     ROLLING_STEP = 21        # recompute edges ~monthly
+    VOL_LOOKBACK = 60
 
 # ---------------------------------------------------------------------------
 # Shock / propagation definition (Section 1: what counts as a "shock")
